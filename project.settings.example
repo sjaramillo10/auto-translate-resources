@@ -1,0 +1,5 @@
+#CREDENTIALS (Currently only Google Translator API is supported)
+
+#Text-to-speech service credentials
+[translate]
+api_key = YOUR_GOOGLE_TRANSLATOR_API_KEY_HERE
