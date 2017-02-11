@@ -17,6 +17,7 @@ from tempfile import mkstemp
 from shutil import move
 from os import remove, close
 import time
+import fileinput
 start_time = time.time()
 
 
@@ -102,7 +103,9 @@ def translate(source, language):
     service = (build('translate', 'v2', developerKey=api_key))
     request = service.translations().list(q=source, target=language)
     response = request.execute()
-    return html.unescape(response['translations'][0]['translatedText'])
+    # Escape some html entities that come with response AND Escape
+    # Apostrophe (needed for Android Resource xml files)
+    return html.unescape(response['translations'][0]['translatedText']).replace("'", "\\'")
 
 
 def update_file(file_path, translated_dict, verbose):
@@ -126,57 +129,40 @@ def update_file(file_path, translated_dict, verbose):
     for t_string in remaining_list:
         new_line = ' <string name="' + t_string + '">' + translated_dict[t_string] + '</string>\n'
         insert_lines += new_line
-        if verbose:
-            print("Added new line -> " + new_line)
 
     # UPDATE AND INSERT LINES
     # List with items to be updated
     update_list = list(update_dict.keys())
-    # Create temp file
-    fh, abs_path = mkstemp()
-    with open(abs_path, 'r+') as new_file:
-        with open(file_path) as old_file:
-            for line in old_file:
-                # Check if the tag  is commented
-                if line.strip(' \t\n\r')[0:4] == '<!--':
-                    new_file.write(line)
-                    continue
+    for line in fileinput.input([file_path], inplace=True):
+        # Check if the tag  is commented
+        if line.strip(' \t\n\r')[0:4] == '<!--':
+            print(line)
+            continue
+        # Insert New Lines
+        if insert_lines:
+            # Insert as soon as the first resource tag appears
+            if "<resources>" in line:
+                start_tag_line = line.strip(' \t\n\r')
+                new_lines = start_tag_line + "\n" + insert_lines
+                print(line.replace(line, new_lines))
+                #To stop running after first success
+                insert_lines = None
+                continue
 
-                # Insert New Lines
-                if insert_lines:
-                    # Insert as soon as the first resource tag appears
-                    if "<resources>" in line:
-                        start_tag_line = line.strip(' \t\n\r')
-                        new_lines = start_tag_line + "\n" + insert_lines
-                        new_file.write(new_lines)
-                        if verbose:
-                            print("Insert all lines after resource tag -> " + new_lines)
-                        #To stop running after first success
-                        insert_lines = None
-                        continue
+        # Update Line
+        updated = False
+        for update in update_list:
+            if update in line:
+                new_line = ' <string name="' + update + '">' + update_dict[update] + '</string>\n'
+                print(line.replace(line, new_line),'')
+                # Remove updated list from the list since they are unique
+                update_list.remove(update)
+                updated = True
+                break
 
-                # Update Line
-                updated = False
-                for update in update_list:
-                    if update in line:
-                        new_line = ' <string name="' + update + '">' + update_dict[update] + '</string>\n'
-                        new_file.write(new_line)
-                        # Remove updated list from the list since they are unique
-                        update_list.remove(update)
-                        updated = True
-                        if verbose:
-                            print("Updated line -> " + new_line)
-                        break
-
-                # Just copy the original line
-                if not updated:
-                    new_file.write(line)
-
-    close(fh)
-    # Remove original file
-    remove(file_path)
-    # Move new file
-    move(abs_path, file_path)
+        # Just copy the original line
+        if not updated:
+            print(line)
 
     print("File Updated.")
 
