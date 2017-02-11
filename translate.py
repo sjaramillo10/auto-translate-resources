@@ -11,8 +11,13 @@ from xml.dom import minidom
 from glob import glob
 import argparse
 import configparser
-import json
+import html
 from googleapiclient.discovery import build
+from tempfile import mkstemp
+from shutil import move
+from os import remove, close
+import time
+start_time = time.time()
 
 
 def translate(node):
@@ -51,7 +56,7 @@ def translate_files(base_path, string_dict, ignored_language_list, verbose):
     """
     paths = glob(base_path + '/values-*/')
 
-    #Each path is a different language file
+    # Each path is a different language file
     for path in paths:
         # print(path)
         # Get the language at folder name pattern
@@ -64,6 +69,8 @@ def translate_files(base_path, string_dict, ignored_language_list, verbose):
         language = encode_android_res_lang(language)
         print("Starting translation for " + language)
         translate_file(string_dict, path, language, verbose)
+        print("--------------------------------------------")
+
 
 def translate_file(string_dict, path, language, verbose):
     """
@@ -76,19 +83,18 @@ def translate_file(string_dict, path, language, verbose):
     """
     translated_dict = {}
     for key, value in string_dict.items():
-        translated_value = translate(value,language)
+        translated_value = translate(value, language)
         translated_dict[key] = translated_value
         if verbose:
-            print( value + " => " + translated_value)
+            print(value + " => " + translated_value)
     if verbose:
-        print( "Translation Finished.")
+        print("Translation Finished.")
 
     file_path = path + "strings.xml"
-    update_file(file_path, translated_dict)
+    update_file(file_path, translated_dict, verbose)
 
 
-
-def translate(source,language):
+def translate(source, language):
     # Use Google Translator API to translate teh sentence <http://code.google.com/apis/console>
     config = configparser.ConfigParser()
     config.read('project.settings')
@@ -96,18 +102,90 @@ def translate(source,language):
     service = (build('translate', 'v2', developerKey=api_key))
     request = service.translations().list(q=source, target=language)
     response = request.execute()
-    return response['translations'][0]['translatedText']
+    return html.unescape(response['translations'][0]['translatedText'])
 
 
-def update_file(file_path, translated_dict):
-    print("Updating file: " + file_path )
+def update_file(file_path, translated_dict, verbose):
+    print("Updating file: " + file_path)
     baseDoc = minidom.parse(file_path)
     strings = baseDoc.getElementsByTagName("string")
     translated_list_key = list(translated_dict.keys())
+    update_dict = {}
     for string in strings:
         # Push into the dictionary the pair of key value for string key and key value
         if string.getAttribute("name") in translated_list_key:
-            string_dict[string.getAttribute("name")] = string.firstChild.nodeValue
+            update_key = string.getAttribute("name")
+            # Remove items
+            update_dict[update_key] = translated_dict[update_key]
+            del translated_dict[update_key]
+
+    # Select insert lines
+    # List with the items to be inserted
+    remaining_list = list(translated_dict.keys())
+    insert_lines = ''
+    for t_string in remaining_list:
+        new_line = ' <string name="' + t_string + '">' + translated_dict[t_string] + '</string>\n'
+        insert_lines += new_line
+        if verbose:
+            print("Added new line -> " + new_line)
+
+    # UPDATE AND INSERT LINES
+    # List with items to be updated
+    update_list = list(update_dict.keys())
+    # Create temp file
+    fh, abs_path = mkstemp()
+    with open(abs_path, 'r+') as new_file:
+        with open(file_path) as old_file:
+            for line in old_file:
+                # Check if the tag  is commented
+                if line.strip(' \t\n\r')[0:4] == '<!--':
+                    new_file.write(line)
+                    continue
+
+                # Insert New Lines
+                if insert_lines:
+                    # Insert as soon as the first resource tag appears
+                    if "<resources>" in line:
+                        start_tag_line = line.strip(' \t\n\r')
+                        new_lines = start_tag_line + "\n" + insert_lines
+                        new_file.write(new_lines)
+                        if verbose:
+                            print("Insert all lines after resource tag -> " + new_lines)
+                        #To stop running after first success
+                        insert_lines = None
+                        continue
+
+                # Update Line
+                updated = False
+                for update in update_list:
+                    if update in line:
+                        new_line = ' <string name="' + update + '">' + update_dict[update] + '</string>\n'
+                        new_file.write(new_line)
+                        # Remove updated list from the list since they are unique
+                        update_list.remove(update)
+                        updated = True
+                        if verbose:
+                            print("Updated line -> " + new_line)
+                        break
+
+                # Just copy the original line
+                if not updated:
+                    new_file.write(line)
+
+    close(fh)
+    # Remove original file
+    remove(file_path)
+    # Move new file
+    move(abs_path, file_path)
+
+    print("File Updated.")
+
+
+def replaceText(node, newText):
+    if node.firstChild.nodeType != node.TEXT_NODE:
+        raise Exception("node does not contain text")
+
+    node.firstChild.replaceWholeText(newText)
 
 
 def encode_android_res_lang(language):
@@ -168,6 +246,8 @@ def main():
     # Start translating the strings on each file
     translate_files(args.path, string_dict, ignored_language_list, args.verbose)
 
+    print("------------------------------------------------")
+    print("--- Execution time %s seconds ---" % (time.time() - start_time))
 
 if __name__ == '__main__':
     main()
