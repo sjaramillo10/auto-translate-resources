@@ -133,7 +133,8 @@ def update_file(file_path, translated_dict, verbose):
     # UPDATE AND INSERT LINES
     # List with items to be updated
     update_list = list(update_dict.keys())
-    for line in fileinput.input([file_path], inplace=True):
+    text_file = open("games.txt", "a")
+    for line in text_file:
         # Check if the tag  is commented
         if line.strip(' \t\n\r')[0:4] == '<!--':
             print(line)
@@ -163,7 +164,7 @@ def update_file(file_path, translated_dict, verbose):
         # Just copy the original line
         if not updated:
             print(line)
-
+    text_file.close()
     print("File Updated.")
 
 
