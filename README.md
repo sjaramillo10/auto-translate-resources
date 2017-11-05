@@ -106,7 +106,7 @@ $ python3 translate.py PATH_TO_RESOURCE STRING_LIST
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
 
-## Acknowledgments
+## Limitations
 
 * This works only with Android string resource schemes
 * Currently it doesn't support translate all the strings (it needs the list 
