@@ -40,6 +40,7 @@ venv/*
 .pydevproject
 .idea/
 .xcode
+.vscode
 
 # Mac file
 .DS_Store
@@ -55,3 +56,6 @@ data/*
 
 #env dir
 smart/*
+
+#test dir
+test
