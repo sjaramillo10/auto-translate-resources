@@ -18,16 +18,9 @@ from shutil import move
 from os import remove, close
 import time
 import fileinput
+import re
+
 start_time = time.time()
-
-
-def translate(node):
-    if len(node.childNodes) == 0:
-        result = None
-    else:
-        result = node.firstChild.data
-    return result
-
 
 def get_string_dict(base_path, string_list):
     """
@@ -84,8 +77,8 @@ def translate_file(string_dict, path, language, verbose):
     """
     translated_dict = {}
     for key, value in string_dict.items():
-        translated_value = translate(value, language)
-        translated_dict[key] = translated_value
+        translated_value = translate(hide_placeholders(value), language)
+        translated_dict[key] = show_placeholders(translated_value)
         if verbose:
             print(value + " => " + translated_value)
     if verbose:
@@ -94,6 +87,18 @@ def translate_file(string_dict, path, language, verbose):
     file_path = path + "strings.xml"
     update_file(file_path, translated_dict, verbose)
 
+def hide_placeholders(string):
+    """
+    This method hides string placeholders like %1$s and $6$d by converting them to __1s__ and __6d__
+    to avoid translation errors.
+    """
+    return re.sub(r'\%(\d+)\$([sdf])', r'__\1\2__', string)
+
+def show_placeholders(string):
+    """
+    This method shows the placeholders in their normal form after the string has been translated.
+    """
+    return re.sub(r'__(\d+)([sdf])__', r'%\1$\2', string)
 
 def translate(source, language):
     # Use Google Translator API to translate the sentence <http://code.google.com/apis/console>
@@ -166,13 +171,6 @@ def update_file(file_path, translated_dict, verbose):
         outFile.write(new_file_content)
 
     print("File Updated.")
-
-
-def replaceText(node, newText):
-    if node.firstChild.nodeType != node.TEXT_NODE:
-        raise Exception("node does not contain text")
-
-    node.firstChild.replaceWholeText(newText)
 
 
 def encode_android_res_lang(language):
