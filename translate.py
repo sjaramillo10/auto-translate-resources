@@ -96,7 +96,7 @@ def translate_file(string_dict, path, language, verbose):
 
 
 def translate(source, language):
-    # Use Google Translator API to translate teh sentence <http://code.google.com/apis/console>
+    # Use Google Translator API to translate the sentence <http://code.google.com/apis/console>
     config = configparser.ConfigParser()
     config.read('project.settings')
     api_key = config['translate']['api_key']
@@ -112,11 +112,10 @@ def update_file(file_path, translated_dict, verbose):
     print("Updating file: " + file_path)
     baseDoc = minidom.parse(file_path)
     strings = baseDoc.getElementsByTagName("string")
-    translated_list_key = list(translated_dict.keys())
     update_dict = {}
     for string in strings:
         # Push into the dictionary the pair of key value for string key and key value
-        if string.getAttribute("name") in translated_list_key:
+        if string.getAttribute("name") in translated_dict:
             update_key = string.getAttribute("name")
             # Remove items
             update_dict[update_key] = translated_dict[update_key]
@@ -124,47 +123,48 @@ def update_file(file_path, translated_dict, verbose):
 
     # Select insert lines
     # List with the items to be inserted
-    remaining_list = list(translated_dict.keys())
+    remaining_strings = list(translated_dict.keys())
     insert_lines = ''
-    for t_string in remaining_list:
-        new_line = ' <string name="' + t_string + '">' + translated_dict[t_string] + '</string>\n'
+    for string in remaining_strings:
+        new_line = '    <string name="' + string + '">' + translated_dict[string] + '</string>\n'
         insert_lines += new_line
 
     # UPDATE AND INSERT LINES
     # List with items to be updated
     update_list = list(update_dict.keys())
-    text_file = open(file_path, "r+")
+    text_file = open(file_path, "r")
+    new_file_content = ""
     for line in text_file:
-        # Check if the tag  is commented
-        if line.strip(' \t\n\r')[0:4] == '<!--':
-            print(line)
-            continue
-        # Insert New Lines
-        if insert_lines:
-            # Insert as soon as the first resource tag appears
-            if "<resources>" in line:
-                start_tag_line = line.strip(' \t\n\r')
-                new_lines = start_tag_line + "\n" + insert_lines
-                print(line.replace(line, new_lines))
-                #To stop running after first success
-                insert_lines = None
-                continue
-
         # Update Line
         updated = False
         for update in update_list:
-            if update in line:
-                new_line = ' <string name="' + update + '">' + update_dict[update] + '</string>\n'
-                print(line.replace(line, new_line),'')
+            if '<string name="' + update + '">' in line:
+                new_line = '    <string name="' + update + '">' + update_dict[update] + '</string>\n'
+                new_file_content += new_line
                 # Remove updated list from the list since they are unique
                 update_list.remove(update)
                 updated = True
                 break
 
+        # Insert new strings
+        if "</resources>" in line:
+            new_lines = ""
+            if insert_lines:
+                new_lines = "\n    <!-- New translated strings -->\n" + insert_lines
+            
+            new_lines += "</resources>\n"
+            new_file_content += new_lines
+            continue
         # Just copy the original line
-        if not updated:
-            print(line)
+        elif not updated:
+            new_file_content += line
+        
     text_file.close()
+    print(new_file_content)
+
+    with open(file_path, "w") as outFile:
+        outFile.write(new_file_content)
+
     print("File Updated.")
 
 
@@ -201,13 +201,13 @@ def encode_android_res_lang(language):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Translate passed strings from files of a android project based on passed list of strings resouce names.")
+        description="Translate passed strings from files of an android project based on passed list of strings resouce names.")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-i", "--ignored_languages_list", type=str,
-                        help="String containing the language which files should be ignored on at translation. Comma separated list. eg. ar,pt")
-    parser.add_argument("path", type=str, help="The base path")
+                        help="String containing the languages which files should be ignored for the translation. Comma separated list. eg. ar,pt")
+    parser.add_argument("path", type=str, help="The base values(-*) folders path")
     parser.add_argument("string_list", type=str,
-                        help="String of the base string.xml to be translated. Comma separated list eg, app_name,dialog_positive,loading_msg")
+                        help="Strings of the base string.xml to be translated. Comma separated list eg, app_name,dialog_positive,loading_msg")
     args = parser.parse_args()
 
     list = args.string_list.split(',')
