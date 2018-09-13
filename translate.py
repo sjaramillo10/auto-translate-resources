@@ -25,7 +25,7 @@ start_time = time.time()
 def get_string_dict(base_path, string_list):
     """
     Get the dictionary with the default key:value for each element of
-    the string keys list passed.
+    the string keys list passed, or all strings if string_list is empty.
     :param base_path:
     :param string_list:
     :return string_dict:
@@ -35,7 +35,7 @@ def get_string_dict(base_path, string_list):
     strings = baseDoc.getElementsByTagName("string")
     for string in strings:
         # Push into the dictionary the pair of key value for string key and key value
-        if string.getAttribute("name") in string_list:
+        if not string_list or string.getAttribute("name") in string_list:
             string_dict[string.getAttribute("name")] = string.firstChild.nodeValue
     return string_dict
 
@@ -73,12 +73,11 @@ def translate_file(string_dict, path, language, verbose):
     :param path:
     :param language:
     :param verbose:
-    :return:
     """
     translated_dict = {}
     for key, value in string_dict.items():
-        translated_value = translate(hide_placeholders(value), language)
-        translated_dict[key] = show_placeholders(translated_value)
+        translated_value = translate(value, language)
+        translated_dict[key] = translated_value
         if verbose:
             print(value + " => " + translated_value)
     if verbose:
@@ -87,6 +86,18 @@ def translate_file(string_dict, path, language, verbose):
     file_path = path + "strings.xml"
     update_file(file_path, translated_dict, verbose)
 
+def translate(source, language):
+    # Use Google Translator API to translate the sentence <http://code.google.com/apis/console>
+    config = configparser.ConfigParser()
+    config.read('project.settings')
+    api_key = config['translate']['api_key']
+    service = (build('translate', 'v2', developerKey=api_key))
+    request = service.translations().list(q=hide_placeholders(source), target=language)
+    response = request.execute()
+    # Escape some html entities that come with response AND Escape
+    # Apostrophe (needed for Android Resource xml files)
+    return restore_placeholders(html.unescape(response['translations'][0]['translatedText']).replace("'", "\\'"))
+
 def hide_placeholders(string):
     """
     This method hides string placeholders like %1$s and $6$d by converting them to __1s__ and __6d__
@@ -94,24 +105,11 @@ def hide_placeholders(string):
     """
     return re.sub(r'\%(\d+)\$([sdf])', r'__\1\2__', string)
 
-def show_placeholders(string):
+def restore_placeholders(string):
     """
-    This method shows the placeholders in their normal form after the string has been translated.
+    This method restores the placeholders in their normal form after the string has been translated.
     """
     return re.sub(r'__(\d+)([sdf])__', r'%\1$\2', string)
-
-def translate(source, language):
-    # Use Google Translator API to translate the sentence <http://code.google.com/apis/console>
-    config = configparser.ConfigParser()
-    config.read('project.settings')
-    api_key = config['translate']['api_key']
-    service = (build('translate', 'v2', developerKey=api_key))
-    request = service.translations().list(q=source, target=language)
-    response = request.execute()
-    # Escape some html entities that come with response AND Escape
-    # Apostrophe (needed for Android Resource xml files)
-    return html.unescape(response['translations'][0]['translatedText']).replace("'", "\\'")
-
 
 def update_file(file_path, translated_dict, verbose):
     print("Updating file: " + file_path)
@@ -144,6 +142,10 @@ def update_file(file_path, translated_dict, verbose):
         updated = False
         for update in update_list:
             if '<string name="' + update + '">' in line:
+                # Make sure we are not translating wrong strings
+                if 'translatable="false"' in line:
+                    continue
+
                 new_line = '    <string name="' + update + '">' + update_dict[update] + '</string>\n'
                 new_file_content += new_line
                 # Remove updated list from the list since they are unique
@@ -204,11 +206,12 @@ def main():
     parser.add_argument("-i", "--ignored_languages_list", type=str,
                         help="String containing the languages which files should be ignored for the translation. Comma separated list. eg. ar,pt")
     parser.add_argument("path", type=str, help="The base values(-*) folders path")
-    parser.add_argument("string_list", type=str,
-                        help="Strings of the base string.xml to be translated. Comma separated list eg, app_name,dialog_positive,loading_msg")
+    parser.add_argument("string_list", type=str, nargs='?', const="",
+                        help="Optional strings of the base string.xml to be translated. Comma separated list eg, app_name,dialog_positive,loading_msg. " +
+                        "If the parameter is not present then the whole file will be translated.")
     args = parser.parse_args()
 
-    list = args.string_list.split(',')
+    string_list = args.string_list.split(',') if args.string_list else []
 
     if args.verbose:
         print("Starting translation script")
@@ -220,9 +223,9 @@ def main():
             print("Ignoring Languages: " + args.ignored_languages_list)
 
     if args.verbose:
-        print("Getting default values for " + ",".join(str(x) for x in list) + "...")
+        print("Getting default values for " + ",".join(str(x) for x in string_list) + "...")
     # Get the values of the list to be translated
-    string_dict = get_string_dict(args.path, list)
+    string_dict = get_string_dict(args.path, string_list)
     if args.verbose:
         print("Done.")
 
