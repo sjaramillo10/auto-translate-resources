@@ -22,7 +22,7 @@ import re
 
 start_time = time.time()
 
-def get_string_dict(base_path, string_list):
+def get_string_dict(base_path, string_list, verbose):
     """
     Get the dictionary with the default key:value for each element of
     the string keys list passed, or all strings if string_list is empty.
@@ -36,6 +36,10 @@ def get_string_dict(base_path, string_list):
     for string in strings:
         # Push into the dictionary the pair of key value for string key and key value
         if not string_list or string.getAttribute("name") in string_list:
+            if string.getAttribute("translatable") == "false":
+                if verbose:
+                    print("Skipping non-translatable string =>", string.getAttribute("name"))
+                continue
             string_dict[string.getAttribute("name")] = string.firstChild.nodeValue
     return string_dict
 
@@ -100,16 +104,16 @@ def translate(source, language):
 
 def hide_placeholders(string):
     """
-    This method hides string placeholders like %1$s and $6$d by converting them to __1s__ and __6d__
+    This method hides string placeholders like %1$s and %6$.2f by converting them to __1s__ and __6.2d__
     to avoid translation errors.
     """
-    return re.sub(r'\%(\d+)\$([sdf])', r'__\1\2__', string)
+    return re.sub(r'\%(\d+)\$(\.?)(\d*)([sdf])', r'__\1\2\3\4__', string)
 
 def restore_placeholders(string):
     """
     This method restores the placeholders in their normal form after the string has been translated.
     """
-    return re.sub(r'__(\d+)([sdf])__', r'%\1$\2', string)
+    return re.sub(r'__(\d+)(\.?)(\d*)([sdf])__', r'%\1$\2\3\4', string)
 
 def update_file(file_path, translated_dict, verbose):
     print("Updating file: " + file_path)
@@ -225,7 +229,7 @@ def main():
     if args.verbose:
         print("Getting default values for " + ",".join(str(x) for x in string_list) + "...")
     # Get the values of the list to be translated
-    string_dict = get_string_dict(args.path, string_list)
+    string_dict = get_string_dict(args.path, string_list, args.verbose)
     if args.verbose:
         print("Done.")
 
