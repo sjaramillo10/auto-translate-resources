@@ -96,24 +96,26 @@ def translate(source, language):
     config.read('project.settings')
     api_key = config['translate']['api_key']
     service = (build('translate', 'v2', developerKey=api_key))
-    request = service.translations().list(q=hide_placeholders(source), target=language)
+    request = service.translations().list(q=hide_placeholders_and_new_lines(source), target=language)
     response = request.execute()
     # Escape some html entities that come with response AND Escape
     # Apostrophe (needed for Android Resource xml files)
-    return restore_placeholders(html.unescape(response['translations'][0]['translatedText']).replace("'", "\\'"))
+    return restore_placeholders_and_new_lines(html.unescape(response['translations'][0]['translatedText']).replace("'", "\\'"))
 
-def hide_placeholders(string):
+def hide_placeholders_and_new_lines(string):
     """
     This method hides string placeholders like %1$s and %6$.2f by converting them to __1s__ and __6.2d__
     to avoid translation errors.
     """
-    return re.sub(r'\%(\d+)\$(\.?)(\d*)([sdf])', r'__\1\2\3\4__', string)
+    tmp = re.sub(r'\%(\d+)\$(\.?)(\d*)([sdf])', r'__\1\2\3\4__', string)
+    return re.sub(r'\\n', r' __n__', tmp)
 
-def restore_placeholders(string):
+def restore_placeholders_and_new_lines(string):
     """
     This method restores the placeholders in their normal form after the string has been translated.
     """
-    return re.sub(r'__(\d+)(\.?)(\d*)([sdf])__', r'%\1$\2\3\4', string)
+    tmp = re.sub(r'__(\d+)(\.?)(\d*)([sdf])__', r'%\1$\2\3\4', string)
+    return re.sub(r'__n__', r'\\n', tmp)
 
 def update_file(file_path, translated_dict, verbose):
     print("Updating file: " + file_path)
