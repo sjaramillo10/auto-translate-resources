@@ -46,7 +46,7 @@ def copy_files(base_path, ignored_language_list, verbose):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Translate passed strings from files of an android project based on passed list of strings resouce names.")
+        description="Copy the default strings.xml resource to all the other resource files, to prepare for the first complete translation.")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-i", "--ignored_languages_list", type=str,
                         help="String containing the languages which files should be ignored for the translation. Comma separated list. eg. ar,pt")

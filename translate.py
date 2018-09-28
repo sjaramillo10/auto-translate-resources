@@ -53,12 +53,15 @@ def translate_files(base_path, string_dict, ignored_language_list, verbose):
     :return string_dict:
     """
     paths = glob(base_path + '/values-*/')
+    size = len(paths)
+    count = 0
 
     # Each path is a different language file
     for path in paths:
         # print(path)
         # Get the language at folder name pattern
         language = path.strip('/').split('/')[-1].split('-', 1)[1]
+        count += 1
         # Pass languages ignored and system folder
         if language in ignored_language_list:
             continue
@@ -67,7 +70,10 @@ def translate_files(base_path, string_dict, ignored_language_list, verbose):
         language = encode_android_res_lang(language)
         print("Starting translation for " + language)
         translate_file(string_dict, path, language, verbose)
-        print("--------------------------------------------")
+
+        if verbose:
+            print("=> " + str(count) + " out of " + str(size) + " files translated.")
+        print("--------------------------------------------\n\n\n\n")
 
 
 def translate_file(string_dict, path, language, verbose):
@@ -173,7 +179,7 @@ def update_file(file_path, translated_dict, verbose):
             new_file_content += line
         
     text_file.close()
-    print(new_file_content)
+    #print(new_file_content)
 
     with open(file_path, "w") as outFile:
         outFile.write(new_file_content)
