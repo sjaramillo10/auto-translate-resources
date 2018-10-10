@@ -228,7 +228,7 @@ def main():
     if args.verbose:
         print("Starting translation script")
     # System folders names that follows the pattern values-* and HAVE to be ignored
-    ignored_language_list = ['w820dp', 'v21']
+    ignored_language_list = ['w820dp', 'v21', 'sw480dp', 'sw600dp', 'sw720dp']
     if args.ignored_languages_list:
         ignored_language_list += args.ignored_languages_list.split(',')
         if args.verbose:
