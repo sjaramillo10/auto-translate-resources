@@ -63,7 +63,11 @@ def translate_files(base_path, string_dict, ignored_language_list, verbose):
         language = path.strip('/').split('/')[-1].split('-', 1)[1]
         count += 1
         # Pass languages ignored and system folder
-        if language in ignored_language_list:
+        if language in ignored_language_list or re.match(r'^[a-zA-Z]*[0-9]+[a-zA-Z]*$', language):
+            if verbose:
+                print("Ignoring: " + language)
+                print("--------------------------------------------\n\n\n\n")
+            
             continue
         # Android resources use a pattern with format xx-rCC where xx in the language
         # and CC is the country. But google translator API uses a format xx-cc
@@ -102,7 +106,7 @@ def translate(source, language):
     config.read('project.settings')
     api_key = config['translate']['api_key']
     service = (build('translate', 'v2', developerKey=api_key))
-    request = service.translations().list(q=hide_placeholders_and_new_lines(source), target=language)
+    request = service.translations().list(q=hide_placeholders_and_new_lines(source), target=language, source='en')
     response = request.execute()
     # Escape some html entities that come with response AND Escape
     # Apostrophe (needed for Android Resource xml files)
@@ -228,7 +232,7 @@ def main():
     if args.verbose:
         print("Starting translation script")
     # System folders names that follows the pattern values-* and HAVE to be ignored
-    ignored_language_list = ['w820dp', 'v21', 'sw480dp', 'sw600dp', 'sw720dp']
+    ignored_language_list = []
     if args.ignored_languages_list:
         ignored_language_list += args.ignored_languages_list.split(',')
         if args.verbose:
